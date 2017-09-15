@@ -1,0 +1,6 @@
+netty web examples
+ . GET
+ . POST
+ . static file
+
+ . websocket
