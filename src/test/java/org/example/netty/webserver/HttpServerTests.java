@@ -45,12 +45,11 @@ public class HttpServerTests {
 	
 	@Test
 	public void testStartAndDestoy() throws InterruptedException {
-		final HttpServer endpoint = new HttpServer();
-		ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
+		try (final HttpServer endpoint = new HttpServer()) {
+			ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
 		
-		Thread.sleep(1000); 
-		
-		endpoint.destroy();
+			Thread.sleep(1000); 
+		}
 	}
 	
 	@Test
@@ -58,16 +57,15 @@ public class HttpServerTests {
 		String expectedContent = "Hello world";
 		String url = "/hello";		
 		
-		final HttpServer endpoint = new HttpServer();
-		endpoint.get(url, (request) -> expectedContent);
+		try (final HttpServer endpoint = new HttpServer()) {
+			endpoint.get(url, (request) -> expectedContent);
 		
-		ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
+			ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
 				
-		Assert.assertEquals(expectedContent, testHTTPGet(
+			Assert.assertEquals(expectedContent, testHTTPGet(
 				"http://localhost:" + PORT + url, null));
 		
-		endpoint.destroy();
-		
+		}		
 		
 		/*Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
@@ -114,7 +112,7 @@ public class HttpServerTests {
 		Assert.assertEquals(expectedContent, testHTTPGet(
 				"http://localhost:" + PORT + url, getParams));
 		
-		endpoint.destroy();
+		endpoint.close();
 	}
 	
 	@Test
@@ -167,7 +165,7 @@ public class HttpServerTests {
 		Assert.assertEquals(expectedContent, testHTTPPost(
 				"http://localhost:" + PORT + url, nvps));
 		
-		endpoint.destroy();
+		endpoint.close();
 	}
 	
 	@Test
@@ -186,7 +184,7 @@ public class HttpServerTests {
 		
 		testHTTPGet("http://localhost:" + PORT + url, null);		
 		
-		endpoint.destroy();
+		endpoint.close();
 	}
 	
 	public static  String testHTTPGet(String url, Map<String, String> params) throws ClientProtocolException, IOException, URISyntaxException {

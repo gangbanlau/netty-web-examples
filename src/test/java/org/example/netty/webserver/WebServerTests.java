@@ -42,12 +42,11 @@ public class WebServerTests {
 	
 	@Test
 	public void testStartAndDestoy() throws InterruptedException {
-		final WebServer endpoint = new WebServer(WSURI);
-		ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
+		try (final WebServer endpoint = new WebServer(WSURI)) {
+			ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
 		
-		Thread.sleep(1000); 
-		
-		endpoint.destroy();
+			Thread.sleep(1000); 
+		}
 	}
 	
 	@Test
@@ -63,13 +62,13 @@ public class WebServerTests {
 		Assert.assertEquals(expectedContent, HttpServerTests.testHTTPGet(
 				"http://localhost:" + PORT + url, null));
 		
-		endpoint.destroy();
+		endpoint.close();
 		
 		/*
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
 			public void run() {
-				endpoint.destroy();
+				endpoint.close();
 			}
 		});
 		
@@ -127,7 +126,7 @@ public class WebServerTests {
 		Assert.assertEquals(expectedContent, HttpServerTests.testHTTPPost(
 				"http://localhost:" + PORT + url, nvps));
 		
-		endpoint.destroy();
+		endpoint.close();
 	}
 	
 	@Test
@@ -148,7 +147,7 @@ public class WebServerTests {
 	    Thread.sleep(1000);
 	    Assert.assertTrue(!l.isOpened());
 	    
-	    endpoint.destroy();
+	    endpoint.close();
 	}
 	
 	public static WebSocket testWebSocket(SocketListener l) throws InterruptedException {

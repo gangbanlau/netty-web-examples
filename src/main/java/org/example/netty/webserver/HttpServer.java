@@ -1,5 +1,7 @@
 package org.example.netty.webserver;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.regex.Pattern;
 
@@ -22,7 +24,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.util.concurrent.Future;
 
-public class HttpServer {
+public class HttpServer implements Closeable {
 	private static final Logger logger = LoggerFactory.getLogger(HttpServer.class);
 
 	private Channel channel;
@@ -61,15 +63,7 @@ public class HttpServer {
 	protected ChannelInitializer<Channel> createChannelInitializer(RouteTable r) {
 		return new HttpServerInitializer(r);
 	}
-	
-	public void destroy() {
-		if (channel != null)
-			channel.close();
 		
-		Future<?> future = group.shutdownGracefully();
-		future.syncUninterruptibly();
-	}
-	
     /**
      * Adds a GET route.
      *
@@ -93,5 +87,14 @@ public class HttpServer {
     public HttpServer post(final String path, final Handler handler) {
         this.routeTable.addRoute(new Route(HttpMethod.POST, Pattern.compile(path), handler));
         return this;
-    }	
+    }
+
+	@Override
+	public void close() {
+		if (channel != null)
+			channel.close();
+		
+		Future<?> future = group.shutdownGracefully();
+		future.syncUninterruptibly();
+	}	
 }

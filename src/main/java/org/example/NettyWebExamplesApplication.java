@@ -16,7 +16,7 @@ public class NettyWebExamplesApplication {
 	@Autowired
 	HelloHandler helloHandler;
 
-	@Bean(destroyMethod = "destroy")
+	@Bean(destroyMethod = "close")
 	HttpServer httpServer() {
 		HttpServer httpd = new HttpServer();
 		
