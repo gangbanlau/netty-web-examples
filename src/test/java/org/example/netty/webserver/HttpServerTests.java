@@ -41,6 +41,34 @@ import io.netty.handler.codec.http.multipart.InterfaceHttpData.HttpDataType;
 public class HttpServerTests {
 	private static final Logger logger = LoggerFactory.getLogger(HttpServerTests.class);
 	
+    /**
+     * Valid UCS characters defined in RFC 3987. Excludes space characters.
+     */
+    private static final String UCS_CHAR = "[" +
+            "\u00A0-\uD7FF" +
+            "\uF900-\uFDCF" +
+            "\uFDF0-\uFFEF" +
+            "\uD800\uDC00-\uD83F\uDFFD" +
+            "\uD840\uDC00-\uD87F\uDFFD" +
+            "\uD880\uDC00-\uD8BF\uDFFD" +
+            "\uD8C0\uDC00-\uD8FF\uDFFD" +
+            "\uD900\uDC00-\uD93F\uDFFD" +
+            "\uD940\uDC00-\uD97F\uDFFD" +
+            "\uD980\uDC00-\uD9BF\uDFFD" +
+            "\uD9C0\uDC00-\uD9FF\uDFFD" +
+            "\uDA00\uDC00-\uDA3F\uDFFD" +
+            "\uDA40\uDC00-\uDA7F\uDFFD" +
+            "\uDA80\uDC00-\uDABF\uDFFD" +
+            "\uDAC0\uDC00-\uDAFF\uDFFD" +
+            "\uDB00\uDC00-\uDB3F\uDFFD" +
+            "\uDB44\uDC00-\uDB7F\uDFFD" +
+            "&&[^\u00A0[\u2000-\u200A]\u2028\u2029\u202F\u3000]]";
+
+    /**
+     * Valid characters for IRI label defined in RFC 3987.
+     */
+    private static final String LABEL_CHAR = "a-zA-Z0-9" + UCS_CHAR;
+    
 	public static final int PORT = 18080;
 	
 	@Test
@@ -70,7 +98,7 @@ public class HttpServerTests {
 		/*Runtime.getRuntime().addShutdownHook(new Thread() {
 			@Override
 			public void run() {
-				endpoint.destroy();
+				endpoint.close();
 			}
 		});
 		
@@ -79,10 +107,13 @@ public class HttpServerTests {
 	}
 
 	@Test
-	@Ignore
 	public void testGetWithParams() throws InterruptedException, ClientProtocolException, IOException, URISyntaxException {
 		String expectedContent = "Hello world";
-		String url = "/hello";		
+		String url = "/hello";
+		String urlRegrex = url + "\\?(?:(?:[" + LABEL_CHAR
+            + ";/\\?:@&=#~"  // plus optional query params
+            + "\\-\\.\\+!\\*'\\(\\),_\\$])|(?:%[a-fA-F0-9]{2}))*";
+		
 		String A_1 = "用户名username";
 		String V_1 = "vip";
 		String A_2 = "密码项password";
@@ -91,28 +122,40 @@ public class HttpServerTests {
 		getParams.put(A_1, V_1);
 		getParams.put(A_2, V_2);
 		
-		final HttpServer endpoint = new HttpServer();
-		endpoint.get(url, (request) -> {
-			QueryStringDecoder queryStringDecoder = new QueryStringDecoder(request.getUri());
-			Map<String, List<String>> params = queryStringDecoder.parameters();
-			if (!params.isEmpty()) {
-				for (Entry<String, List<String>> p : params.entrySet()) {
-					String key = p.getKey();
-					List<String> vals = p.getValue();
-					for (String val : vals) {
-						logger.info(val);
+		try (final HttpServer endpoint = new HttpServer()) {
+			endpoint.get(urlRegrex, (request) -> {
+				boolean foundA_1 = false;
+				boolean foundA_2 = false;
+				
+				QueryStringDecoder queryStringDecoder = new QueryStringDecoder(request.getUri());
+				Map<String, List<String>> params = queryStringDecoder.parameters();
+				if (!params.isEmpty()) {
+					for (Entry<String, List<String>> p : params.entrySet()) {
+						String key = p.getKey();
+						List<String> vals = p.getValue();
+						for (String val : vals) {
+							logger.info("{} {}", key, val);
+				            if (A_1.equals(key)) {
+				            	foundA_1 = true;
+				            	Assert.assertEquals(V_1, val);		          
+				            } else if (A_2.equals(key)) {
+				            	foundA_2 = true;
+				            	Assert.assertEquals(V_2, val);
+				            }							
+						}
 					}
 				}
-			}
-			return expectedContent;
-		});
-		
-		ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
 				
-		Assert.assertEquals(expectedContent, testHTTPGet(
-				"http://localhost:" + PORT + url, getParams));
+				Assert.assertTrue(foundA_1 && foundA_2);
+				return expectedContent;
+			});
+			
+			ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
+					
+			Assert.assertEquals(expectedContent, testHTTPGet(
+					"http://localhost:" + PORT + url, getParams));
 		
-		endpoint.close();
+		}
 	}
 	
 	@Test
