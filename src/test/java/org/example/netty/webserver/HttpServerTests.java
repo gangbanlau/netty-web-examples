@@ -2,10 +2,15 @@ package org.example.netty.webserver;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -214,22 +219,59 @@ public class HttpServerTests {
 	@Test
 	public void testStaticFile() throws ClientProtocolException, IOException, URISyntaxException {
 		String url = "/static/components.png";
-		final HttpServer endpoint = new HttpServer();
-		endpoint.get(url, request -> {
-			URL location = HttpRequestHandler.class.getProtectionDomain().getCodeSource().getLocation();
-			String path = location.toURI() + url;
-			path = !path.contains("file:") ? path:path.substring(5);
-			logger.debug(path);
-			return new File(path);
-		});
-		
-		ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
-		
-		testHTTPGet("http://localhost:" + PORT + url, null);		
-		
-		endpoint.close();
+		try (final HttpServer endpoint = new HttpServer()) {
+			endpoint.get(url, request -> {
+				URL location = HttpRequestHandler.class.getProtectionDomain().getCodeSource().getLocation();
+				String path = location.toURI() + url;
+				path = !path.contains("file:") ? path:path.substring(5);
+				logger.debug(path);
+				File f = new File(path);
+				return f;
+			});
+			
+			ChannelFuture future = endpoint.start(new InetSocketAddress(PORT));
+			
+			File f = testHTTPGetFile("http://localhost:" + PORT + url);
+			Assert.assertNotNull(f);
+			Assert.assertTrue(f.exists());
+			f.delete();
+		}
 	}
 	
+	public static  File testHTTPGetFile(String url) throws ClientProtocolException, IOException, URISyntaxException {
+		try (CloseableHttpClient httpclient = HttpClientUtil.getHttpClient()) {
+			URI baseuri = new URI(url);
+			URIBuilder builder = new URIBuilder()
+					.setScheme(baseuri.getScheme())
+					.setHost(baseuri.getHost())
+					.setPort(baseuri.getPort())
+					.setPath(baseuri.getPath());
+			
+			HttpGet httpget = new HttpGet(builder.build());
+			
+			logger.info("Executing request {}", httpget.getRequestLine());
+			
+			try (CloseableHttpResponse response = httpclient.execute(httpget)) {
+				System.out.println("----------------------------------------");
+				System.out.println(response.getStatusLine());
+
+				// Get hold of the response entity
+				HttpEntity entity = response.getEntity();
+				
+				if (entity != null) {
+					
+					Path p = Files.createTempFile(null, null);
+					try (OutputStream out = Files.newOutputStream(p, StandardOpenOption.APPEND)) {
+						entity.writeTo(out);
+					}
+					
+					return p.toFile();
+				}
+				return null;
+			}
+		}
+	}
+
 	public static  String testHTTPGet(String url, Map<String, String> params) throws ClientProtocolException, IOException, URISyntaxException {
 		try (CloseableHttpClient httpclient = HttpClientUtil.getHttpClient()) {
 			URI baseuri = new URI(url);
